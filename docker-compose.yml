@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql_db_fastify
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: fastifydb
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  web:
+    build: .
+    container_name: fastify_app
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "mysql://user:password@db:3306/fastifydb"
+    
+    # 👇 VOLUMES: A chave para o desenvolvimento com live-reload
+    volumes:
+      # Mapeia o código da aplicação local para o contêiner
+      - ./app:/usr/src/app
+      # Mapeia a pasta prisma também para refletir mudanças no schema
+      - ./prisma:/usr/src/app/prisma
+      # Cria um volume anônimo para node_modules para evitar que a pasta local
+      # sobrescreva a que foi instalada dentro do contêiner.
+      - /usr/src/app/node_modules
+
+    # 👇 Comando que garante que tudo funcione ao iniciar
+    command: >
+      sh -c "npm rebuild && npx prisma generate && npx prisma migrate deploy && npm run dev"
+
+volumes: 
+  mysql_data:
