@@ -15,9 +15,7 @@ class BookService {
     });
   }
 
-  /**
-   * Busca todos os livros no banco de dados.
-   */
+
   async getAll() {
     return this.prisma.book.findMany();
   }
