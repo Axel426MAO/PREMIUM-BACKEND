@@ -15,7 +15,7 @@ COPY app/package*.json ./
 RUN npm install
 
 # Expõe a porta da aplicação
-EXPOSE 3000
+EXPOSE 4000
 
 # O comando para iniciar a aplicação será definido no docker-compose
 CMD [ "npm", "run", "dev" ]

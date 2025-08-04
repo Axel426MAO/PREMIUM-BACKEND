@@ -24,7 +24,7 @@ services:
     container_name: fastify_app
     restart: "no"
     ports:
-      - "3000:3000"
+      - "4000:4000"
     depends_on:
       db:
         condition: service_healthy
