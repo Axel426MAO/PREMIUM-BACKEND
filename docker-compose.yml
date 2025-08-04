@@ -4,7 +4,7 @@ services:
   db:
     image: mysql:8.0
     container_name: mysql_db_fastify
-    restart: always
+    restart: "no"
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: fastifydb
@@ -22,7 +22,7 @@ services:
   web:
     build: .
     container_name: fastify_app
-    restart: always
+    restart: "no"
     ports:
       - "3000:3000"
     depends_on:
