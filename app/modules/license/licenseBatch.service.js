@@ -1,6 +1,5 @@
 'use strict';
 
-// Importa o módulo de criptografia do Node.js para gerar o hash único
 const crypto = require('crypto');
 
 class LicenseBatchService {
@@ -114,6 +113,42 @@ class LicenseBatchService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /**
+   * Busca um lote de licença específico pelo seu ID, incluindo todas as chaves associadas.
+   * @param {number} id - O ID do lote de licenças.
+   * @returns {Promise<object>} O lote encontrado com seus detalhes e chaves.
+   */
+  async getBatchById(id) {
+    const batch = await this.prisma.licenseBatch.findUnique({
+      where: { id },
+      include: {
+        book: { select: { id: true, title: true } },
+        secretary: { select: { id: true, name: true } },
+        school: { select: { id: true, name: true } },
+        // Inclui a lista completa de chaves de licença associadas a este lote
+        license_keys: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            createdAt: true,
+            activatedAt: true,
+          },
+          orderBy: {
+            id: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!batch) {
+      throw new Error('Lote de licenças não encontrado.');
+    }
+
+    return batch;
+  }
 }
 
+// CORREÇÃO: Exporta a classe em vez de uma instância dela.
 module.exports = LicenseBatchService;
