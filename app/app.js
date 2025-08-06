@@ -5,8 +5,8 @@ const cors = require('@fastify/cors');
 const path = require('path'); // 👈 1. Importe o módulo 'path'
 
 fastify.register(cors, {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
 });
 
 fastify.register(require('@fastify/static'), {
@@ -21,5 +21,10 @@ fastify.register(require('./modules/auth/auth.routes'), { prefix: '/api/auth' })
 fastify.register(require('./modules/users/user.routes'), { prefix: '/api/users' });
 fastify.register(require('./modules/books/books.routes'), { prefix: '/api/books' });
 fastify.register(require('./modules/files/files.routes'), { prefix: '/api/files' });
+fastify.register(require('./modules/address/address.routes'), { prefix: '/api/address' });
+fastify.register(require('./modules/secretaries/secretary.routes'), { prefix: '/api/secretaries' });
+fastify.register(require('./modules/responsibles/responsible.routes'), { prefix: '/api/responsibles' });
+fastify.register(require('./modules/schools/school.routes'), { prefix: '/api/schools' });
+fastify.register(require('./modules/license/licenseBatch.routes'), { prefix: '/api/license' });
 
 module.exports = fastify;

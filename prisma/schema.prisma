@@ -2,49 +2,197 @@ generator client {
   provider = "prisma-client-js"
 }
 
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
+// ===============================================
+// MODELOS DE GERENCIAMENTO DE LICENÇAS (CORRIGIDOS)
+// ===============================================
+
+model LicenseBatch {
+  id              Int                @id @default(autoincrement())
+  quantity        Int
+  status          LicenseBatchStatus @default(PENDING_PAYMENT)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  paidAt          DateTime?
+  sentAt          DateTime?
+  receivedAt      DateTime?
+
+  book_id         Int
+  book            Book               @relation(fields: [book_id], references: [id])
+
+  customer_type   CustomerType?
+  secretary_id    Int?
+  secretary       Secretary?         @relation(fields: [secretary_id], references: [id])
+  school_id       Int?
+  school          School?            @relation(fields: [school_id], references: [id])
+
+
+  parent_batch_id Int?
+  parent_batch    LicenseBatch?      @relation("BatchToSubBatches", fields: [parent_batch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  child_batches   LicenseBatch[]     @relation("BatchToSubBatches")
+
+  license_keys    LicenseKey[]
+
+  @@map("license_batches")
+}
+
+model LicenseKey {
+  id                        Int              @id @default(autoincrement())
+  code                      String           @unique
+  status                    LicenseKeyStatus @default(AVAILABLE)
+  createdAt                 DateTime         @default(now())
+  activatedAt               DateTime?
+
+  // ... resto do modelo sem alterações ...
+  batch_id                  Int
+  batch                     LicenseBatch     @relation(fields: [batch_id], references: [id])
+  activated_by_school_id    Int?
+  activated_by_school       School?          @relation(fields: [activated_by_school_id], references: [id])
+  activated_by_secretary_id Int?
+  activated_by_secretary    Secretary?       @relation(fields: [activated_by_secretary_id], references: [id])
+
+  @@map("license_keys")
+}
+
+
+// Enums para controlar os status de forma segura
+enum LicenseBatchStatus {
+  PENDING_PAYMENT
+  PAID
+  SENT
+  RECEIVED
+  PARTITIONED
+  CANCELLED
+}
+
+enum LicenseKeyStatus {
+  AVAILABLE
+  ACTIVATED
+  EXPIRED
+  REVOKED
+}
+
+enum CustomerType {
+  SECRETARY
+  SCHOOL
+}
+
+
+model School {
+  id             Int          @id @default(autoincrement())
+  name           String
+  is_private     Boolean      @default(false)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  address_id     Int          @unique
+  address        Address      @relation(fields: [address_id], references: [id])
+  secretary_id   Int?
+  secretary      Secretary?   @relation(fields: [secretary_id], references: [id])
+
+  responsibles   Responsible[]
+  license_batches LicenseBatch[]
+  activated_keys LicenseKey[]
+
+  @@map("schools")
+}
+
+model Secretary {
+  id               Int          @id @default(autoincrement())
+  name             String
+  is_state_level   Boolean      @default(false)
+  municipality     String?
+  state            String
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  address_id       Int          @unique
+  address          Address      @relation(fields: [address_id], references: [id])
+  responsibles     Responsible[]
+  schools          School[]
+
+  license_batches  LicenseBatch[]
+
+  // Relação inversa: uma secretaria pode ter ativado várias chaves
+  activated_keys LicenseKey[]
+
+  @@map("secretaries")
+}
 
 model Book {
-  id          Int      @id @default(autoincrement())
-  title       String
-  isbn        String?  // Opcional: Nem todo livro pode ter um ISBN
-  pages       Int
-  author      String   
-  publisher   String?  
-  summary     String?  @db.Text 
-  description String?  @db.Text 
-  year_launch Int      @map("year_launch")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id              Int            @id @default(autoincrement())
+  title           String
+  isbn            String?
+  pages           Int
+  author          String
+  publisher       String?
+  summary         String?        @db.Text
+  description     String?        @db.Text
+  year_launch     Int            @map("year_launch")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Relação inversa: um livro pode estar em vários lotes de licenças
+  license_batches LicenseBatch[]
 
   @@map("books")
 }
 
-// Modelo User para referência do relacionamento
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  user_type String   @map("user_type")
-  status    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  password    String
+  user_type   String   @map("user_type")
+  status      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  responsible Responsible?
 
   @@map("users")
 }
 
+model Responsible {
+  id           Int        @id @default(autoincrement())
+  name         String
+  role         String
+  whatsapp     String?
+  phone        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  user_id      Int        @unique
+  user         User       @relation(fields: [user_id], references: [id])
+  school_id    Int?
+  school       School?    @relation(fields: [school_id], references: [id])
+  secretary_id Int?
+  secretary    Secretary? @relation(fields: [secretary_id], references: [id])
+
+  @@map("responsibles")
+}
+
+model Address {
+  id           Int       @id @default(autoincrement())
+  street       String
+  number       String?
+  neighborhood String
+  city         String
+  state        String
+  cep          String
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  school       School?
+  secretary    Secretary?
+
+  @@map("addresses")
+}
 
 model File {
   id              Int      @id @default(autoincrement())
   reference_table String   @map("reference_table")
-  reference_id    Int      @map("reference_id")   
-  name            String   // Nome original do arquivo
-  file_path       String   @map("file_path")      
+  reference_id    Int      @map("reference_id")
+  name            String
+  file_path       String   @map("file_path")
   created_at      DateTime @default(now()) @map("created_at")
 
   @@map("files")
