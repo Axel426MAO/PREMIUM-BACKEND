@@ -44,7 +44,6 @@ class LicenseBatchController {
     }
   }
 
-  // --- NOVO MÉTODO ---
   async getById(request, reply) {
     try {
       const { id } = request.params;
@@ -56,7 +55,7 @@ class LicenseBatchController {
 
       const licenseBatchService = new LicenseBatchService(request.server.prisma);
       const batch = await licenseBatchService.getBatchById(batchId);
-      
+
       return reply.send(batch);
 
     } catch (err) {
@@ -67,6 +66,61 @@ class LicenseBatchController {
       }
 
       return reply.status(500).send({ error: 'Ocorreu um erro interno ao buscar o lote.' });
+    }
+  }
+
+  // --- NOVO MÉTODO ---
+  async getBySecretaryId(request, reply) {
+    try {
+      const { secretaryId } = request.params;
+      const id = parseInt(secretaryId, 10);
+
+      if (isNaN(id)) {
+        return reply.status(400).send({ error: 'O ID da secretaria é inválido.' });
+      }
+
+      const licenseBatchService = new LicenseBatchService(request.server.prisma);
+      const batches = await licenseBatchService.getBatchesBySecretaryId(id);
+
+      return reply.send(batches);
+
+    } catch (err) {
+      request.log.error(err, `Erro ao buscar lotes de licenças para a secretaria com ID: ${request.params.secretaryId}`);
+      return reply.status(500).send({ error: 'Ocorreu um erro interno ao buscar os lotes da secretaria.' });
+    }
+  }
+
+  async updateStatus(request, reply) {
+    try {
+      const { id } = request.params;
+      const { status } = request.body;
+
+      // Valida o ID do lote
+      const batchId = parseInt(id, 10);
+      if (isNaN(batchId)) {
+        return reply.status(400).send({ error: 'O ID do lote é inválido.' });
+      }
+
+      // Valida o status recebido. Por enquanto, só aceitamos "ENVIADO".
+      if (status !== 'ENVIADO') {
+        return reply.status(400).send({ error: 'O status fornecido é inválido. Apenas "ENVIADO" é permitido para esta ação.' });
+      }
+
+      const licenseBatchService = new LicenseBatchService(request.server.prisma);
+      const updatedBatch = await licenseBatchService.updateBatchStatus(batchId, status);
+
+      return reply.send(updatedBatch);
+
+    } catch (err) {
+      request.log.error(err, `Erro ao atualizar o status do lote de licenças: ${err.message}`);
+
+      // Retorna erros de negócio (ex: lote não encontrado, status inválido)
+      if (err instanceof Error && (err.message.includes('não encontrado') || err.message.includes('O lote só pode ser enviado'))) {
+        return reply.status(400).send({ error: err.message });
+      }
+
+      // Retorna erro genérico
+      return reply.status(500).send({ error: 'Ocorreu um erro interno ao processar sua solicitação.' });
     }
   }
 }

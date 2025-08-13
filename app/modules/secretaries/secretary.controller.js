@@ -100,6 +100,21 @@ class SecretaryController {
       return reply.status(500).send({ error: 'Ocorreu um erro interno.' });
     }
   }
+
+  async updateFull(request, reply) {
+    try {
+      const secretaryService = new SecretaryService(request.server.prisma);
+      const { id } = request.params;
+      const updatedData = await secretaryService.updateFullSecretary(Number(id), request.body);
+      return reply.send(updatedData);
+    } catch (err) {
+      request.log.error(`Erro no fluxo de atualização completa: ${err.message}`);
+      if (err.code === 'P2025') {
+        return reply.status(404).send({ error: 'Secretaria não encontrada para atualização.' });
+      }
+      return reply.status(500).send({ error: 'Ocorreu um erro interno.' });
+    }
+  }
 }
 
 module.exports = new SecretaryController();

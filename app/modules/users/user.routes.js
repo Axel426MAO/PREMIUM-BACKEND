@@ -3,7 +3,8 @@
 const userController = require('./user.controller');
 
 async function userRoutes(fastify, options) {
-  // Rotas CRUD para usuários
+
+  fastify.get('/me', userController.getMe);
   fastify.get('/', userController.getAll);
   fastify.get('/:id', userController.getById);
   fastify.post('/', userController.create);

@@ -175,6 +175,60 @@ class SecretaryService {
             }
         });
     }
+
+    /**
+    * Atualiza uma secretaria e todas as suas entidades relacionadas de forma transacional.
+    * @param {number} id - O ID da secretaria a ser atualizada.
+    * @param {object} data - Os novos dados para secretaria, endereço, responsável e usuário.
+    */
+    async updateFullSecretary(id, data) {
+        const { secretary, address, responsible, user } = data;
+
+        return this.prisma.$transaction(async (prisma) => {
+            // 1. Busca a secretaria para obter os IDs relacionados
+            const existingSecretary = await prisma.secretary.findUniqueOrThrow({
+                where: { id },
+                include: { responsibles: true },
+            });
+
+            const responsibleToUpdate = existingSecretary.responsibles[0];
+            if (!responsibleToUpdate) {
+                throw new Error("Responsável principal não encontrado para esta secretaria.");
+            }
+
+            // 2. Atualiza a secretaria
+            const updatedSecretary = await prisma.secretary.update({
+                where: { id },
+                data: secretary,
+            });
+
+            // 3. Atualiza o endereço
+            await prisma.address.update({
+                where: { id: existingSecretary.address_id },
+                data: address,
+            });
+
+            // 4. Atualiza o responsável
+            await prisma.responsible.update({
+                where: { id: responsibleToUpdate.id },
+                data: responsible,
+            });
+
+            // 5. Atualiza o usuário (e a senha, se fornecida)
+            const userDataToUpdate = { email: user.email };
+            if (user.password && user.password.trim() !== '') {
+                userDataToUpdate.password = await bcrypt.hash(user.password, 10);
+            }
+
+            await prisma.user.update({
+                where: { id: responsibleToUpdate.user_id },
+                data: userDataToUpdate,
+            });
+
+            // Retorna os dados atualizados
+            return this.getSecretaryById(id);
+        });
+    }
 }
 
 module.exports = SecretaryService;

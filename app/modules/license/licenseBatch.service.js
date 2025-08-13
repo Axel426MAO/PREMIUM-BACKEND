@@ -1,6 +1,7 @@
 'use strict';
 
-const crypto = require('crypto');
+// O módulo 'crypto' não é mais necessário para este formato, mas pode ser mantido
+// se for usado em outras partes do projeto. Para esta função, não usaremos.
 
 class LicenseBatchService {
   constructor(prisma) {
@@ -11,7 +12,22 @@ class LicenseBatchService {
   }
 
   /**
-   * Cria um lote de licenças e gera todas as chaves com uma nomenclatura customizada.
+   * Gera um trecho alfanumérico aleatório com um comprimento específico.
+   * @param {number} length - O comprimento da string a ser gerada.
+   * @returns {string} A string alfanumérica gerada.
+   * @private
+   */
+  _generateRandomChunk(length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  /**
+   * Cria um lote de licenças e gera todas as chaves com a nomenclatura customizada.
    * @param {object} batchData - Dados para criar o lote.
    * @param {number} batchData.book_id - ID do livro.
    * @param {number} batchData.quantity - Quantidade de licenças.
@@ -20,8 +36,8 @@ class LicenseBatchService {
    * @returns {Promise<object>} O lote criado com a contagem de chaves.
    */
   async createLicenseBatch({ book_id, quantity, secretary_id, school_id }) {
-    
-    // --- Validações Iniciais ---
+
+    // --- Validações Iniciais (Mantidas) ---
     if (!book_id || !quantity) {
       throw new Error('ID do livro e quantidade são obrigatórios.');
     }
@@ -29,37 +45,43 @@ class LicenseBatchService {
       throw new Error('A quantidade deve ser maior que zero.');
     }
     if (!secretary_id && !school_id) {
-        throw new Error('É necessário fornecer um ID de secretaria ou de escola.');
+      throw new Error('É necessário fornecer um ID de secretaria ou de escola.');
     }
     if (secretary_id && school_id) {
-        throw new Error('Forneça apenas um ID de secretaria ou de escola, não ambos.');
+      throw new Error('Forneça apenas um ID de secretaria ou de escola, não ambos.');
     }
 
-    // --- Lógica de Geração do Código ---
-    const currentYear = new Date().getFullYear();
-    let codePrefix = '';
+    // --- NOVA LÓGICA DE GERAÇÃO DE CÓDIGO ---
+
+    // 1. Determina o identificador do cliente (SECEST, SECMUN, ESCPRI)
+    let clientIdentifier = '';
     let customerData = {};
 
-    if (secretary_id) {
-      const secretary = await this.prisma.secretary.findUnique({ where: { id: secretary_id } });
-      if (!secretary) throw new Error(`Secretaria com ID ${secretary_id} não encontrada.`);
-      
-      const sanitizedName = secretary.name.trim().replace(/\s+/g, '-').toUpperCase();
-      codePrefix = `${sanitizedName}-${currentYear}`;
-      customerData = { secretary_id, customer_type: 'SECRETARY' };
-
-    } else if (school_id) {
+    if (school_id) {
       const school = await this.prisma.school.findUnique({ where: { id: school_id } });
       if (!school) throw new Error(`Escola com ID ${school_id} não encontrada.`);
       if (!school.is_private) throw new Error('A geração de lotes diretos é permitida apenas para escolas privadas.');
 
-      codePrefix = `ESCOLA-PRIVADA-${currentYear}`;
+      clientIdentifier = 'ESCPRI';
       customerData = { school_id, customer_type: 'SCHOOL' };
+
+    } else if (secretary_id) {
+      const secretary = await this.prisma.secretary.findUnique({ where: { id: secretary_id } });
+      if (!secretary) throw new Error(`Secretaria com ID ${secretary_id} não encontrada.`);
+
+      clientIdentifier = secretary.is_state_level ? 'SECEST' : 'SECMUN';
+      customerData = { secretary_id, customer_type: 'SECRETARY' };
     }
 
+    // 2. Prepara o sufixo de data no formato DDMMYY
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0'); // Mês é 0-indexado
+    const year = String(now.getFullYear()).slice(-2);
+    const dateSuffix = `${day}${month}${year}`;
 
     const result = await this.prisma.$transaction(async (prisma) => {
-      // 1. Cria o lote, agora com a informação do cliente
+      // 3. Cria o lote de licenças
       const newBatch = await prisma.licenseBatch.create({
         data: {
           book_id,
@@ -68,23 +90,22 @@ class LicenseBatchService {
         },
       });
 
-      // 2. Gera as chaves com o código customizado
+      // 4. Gera as chaves com o novo formato
       const keysToCreate = [];
       for (let i = 0; i < quantity; i++) {
-        // CORREÇÃO: Adiciona o índice do loop (i) e um timestamp de alta precisão
-        // para garantir que a fonte do hash seja sempre única.
-        const uniqueSource = `${codePrefix}-${i}-${process.hrtime.bigint()}`;
-        const uniqueHash = crypto.createHash('sha1').update(uniqueSource).digest('hex').substring(0, 8).toUpperCase();
-        
-        const finalCode = `${codePrefix}-${uniqueHash}`;
-        
+        const chunk1 = this._generateRandomChunk(5);
+        const chunk2 = this._generateRandomChunk(5);
+        const chunk3 = this._generateRandomChunk(5);
+
+        const finalCode = `${clientIdentifier}-${chunk1}-${chunk2}-${chunk3}-${dateSuffix}`;
+
         keysToCreate.push({
           batch_id: newBatch.id,
           code: finalCode,
         });
       }
 
-      // 3. Insere todas as chaves geradas no banco
+      // 5. Insere todas as chaves geradas no banco
       const createdKeys = await prisma.licenseKey.createMany({
         data: keysToCreate,
       });
@@ -126,7 +147,6 @@ class LicenseBatchService {
         book: { select: { id: true, title: true } },
         secretary: { select: { id: true, name: true } },
         school: { select: { id: true, name: true } },
-        // Inclui a lista completa de chaves de licença associadas a este lote
         license_keys: {
           select: {
             id: true,
@@ -148,7 +168,63 @@ class LicenseBatchService {
 
     return batch;
   }
+
+  /**
+  * Busca todos os lotes de licença associados a uma secretaria específica.
+  * @param {number} secretaryId - O ID da secretaria.
+  * @returns {Promise<Array<object>>} Uma lista de lotes de licenças.
+  */
+  async getBatchesBySecretaryId(secretaryId) {
+    return this.prisma.licenseBatch.findMany({
+      where: {
+        secretary_id: secretaryId,
+        status: {
+          in: ["ENVIADO", "RECEBIDO"]
+        }
+      },
+      include: {
+        book: { select: { id: true, title: true } },
+        secretary: { select: { id: true, name: true } },
+        school: { select: { id: true, name: true } },
+        _count: { select: { license_keys: true } },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async updateBatchStatus(batchId, newStatus) {
+    // 1. Busca o lote para garantir que ele existe e verificar seu status atual
+    const existingBatch = await this.prisma.licenseBatch.findUnique({
+      where: { id: batchId },
+    });
+
+    if (!existingBatch) {
+      throw new Error('Lote de licenças não encontrado.');
+    }
+
+    // 2. Regra de negócio: só permite a alteração se o status atual for 'CRIADO'
+    if (existingBatch.status !== 'CRIADO') {
+      throw new Error('O lote só pode ser enviado se o status atual for "CRIADO".');
+    }
+
+    // 3. Prepara os dados para a atualização
+    const now = new Date();
+    const dataToUpdate = {
+      status: newStatus, // 'ENVIADO'
+      sentAt: now,
+      receivedAt: now, // Conforme solicitado, a data de recebimento é a mesma do envio por agora
+    };
+
+    // 4. Executa a atualização no banco de dados
+    const updatedBatch = await this.prisma.licenseBatch.update({
+      where: { id: batchId },
+      data: dataToUpdate,
+    });
+
+    return updatedBatch;
+  }
 }
 
-// CORREÇÃO: Exporta a classe em vez de uma instância dela.
 module.exports = LicenseBatchService;

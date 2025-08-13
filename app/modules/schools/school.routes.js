@@ -6,19 +6,15 @@ const schoolController = require('./school.controller');
  * @param {import('fastify').FastifyInstance} fastify
  */
 async function schoolRoutes(fastify, options) {
-    // Rota para criar uma nova escola
-    fastify.post('/', schoolController.create);
+    fastify.get('/by-secretary/:secretaryId', schoolController.getBySecretaryId);
+    fastify.put('/full/:id', schoolController.updateFull);
 
-    // Rota para buscar todas as escolas
+    // --- Rotas existentes ---
+    fastify.post('/', schoolController.create);
     fastify.get('/', schoolController.getAll);
 
-    // Rota para buscar uma escola por ID
     fastify.get('/:id', schoolController.getById);
-
-    // Rota para atualizar uma escola por ID
     fastify.put('/:id', schoolController.update);
-
-    // Rota para deletar uma escola por ID
     fastify.delete('/:id', schoolController.delete);
 }
 

@@ -4,10 +4,53 @@ const SchoolService = require('./school.service');
 
 class SchoolController {
     /**
-     * Cria uma nova escola.
+     * Busca todas as escolas associadas a um ID de secretaria.
      * @param {import('fastify').FastifyRequest} request
      * @param {import('fastify').FastifyReply} reply
      */
+    async getBySecretaryId(request, reply) {
+        try {
+            const schoolService = new SchoolService(request.server.prisma);
+            // Extrai o ID da secretaria dos parâmetros da URL.
+            const { secretaryId } = request.params;
+
+            // Valida se o ID foi fornecido.
+            if (!secretaryId) {
+                return reply.status(400).send({ error: 'O ID da secretaria é obrigatório.' });
+            }
+            
+            // Chama o serviço para buscar as escolas, convertendo o ID para número.
+            const schools = await schoolService.getSchoolsBySecretaryId(Number(secretaryId));
+            
+            return reply.send(schools);
+        } catch (err) {
+            request.log.error(`Erro ao buscar escolas por secretaria: ${err.message}`);
+            return reply.status(500).send({ error: 'Ocorreu um erro interno ao processar sua solicitação.' });
+        }
+    }
+    
+    /**
+     * Orquestra a atualização completa de uma escola e suas entidades relacionadas.
+     * @param {import('fastify').FastifyRequest} request
+     * @param {import('fastify').FastifyReply} reply
+     */
+    async updateFull(request, reply) {
+        try {
+            const schoolService = new SchoolService(request.server.prisma);
+            const { id } = request.params;
+            const updatedSchool = await schoolService.updateFullSchool(Number(id), request.body);
+            return reply.send(updatedSchool);
+        } catch (err) {
+            request.log.error(`Erro no fluxo de atualização completa da escola: ${err.message}`);
+            if (err.code === 'P2025' || err.message.includes('não encontrada')) {
+                return reply.status(404).send({ error: 'Escola não encontrada para atualização.' });
+            }
+            return reply.status(500).send({ error: 'Ocorreu um erro interno.' });
+        }
+    }
+
+    // --- MÉTODOS EXISTENTES (sem alterações) ---
+
     async create(request, reply) {
         try {
             const schoolService = new SchoolService(request.server.prisma);
@@ -19,11 +62,6 @@ class SchoolController {
         }
     }
 
-    /**
-     * Busca todas as escolas.
-     * @param {import('fastify').FastifyRequest} request
-     * @param {import('fastify').FastifyReply} reply
-     */
     async getAll(request, reply) {
         try {
             const schoolService = new SchoolService(request.server.prisma);
@@ -35,11 +73,6 @@ class SchoolController {
         }
     }
 
-    /**
-     * Busca uma escola pelo seu ID.
-     * @param {import('fastify').FastifyRequest} request
-     * @param {import('fastify').FastifyReply} reply
-     */
     async getById(request, reply) {
         try {
             const schoolService = new SchoolService(request.server.prisma);
@@ -55,11 +88,6 @@ class SchoolController {
         }
     }
 
-    /**
-     * Atualiza uma escola existente.
-     * @param {import('fastify').FastifyRequest} request
-     * @param {import('fastify').FastifyReply} reply
-     */
     async update(request, reply) {
         try {
             const schoolService = new SchoolService(request.server.prisma);
@@ -75,21 +103,14 @@ class SchoolController {
         }
     }
 
-    /**
-     * Deleta uma escola.
-     * @param {import('fastify').FastifyRequest} request
-     * @param {import('fastify').FastifyReply} reply
-     */
     async delete(request, reply) {
         try {
             const schoolService = new SchoolService(request.server.prisma);
             const { id } = request.params;
             await schoolService.deleteSchool(Number(id));
-            // Retorna 204 No Content para sucesso em deleções
             return reply.status(204).send();
         } catch (err) {
             request.log.error(`Erro ao deletar escola: ${err.message}`);
-            // O erro P2025 é tratado dentro do service, aqui tratamos a mensagem genérica dele.
             if (err.message.includes('não encontrada')) {
                 return reply.status(404).send({ error: 'Escola não encontrada para exclusão.' });
             }

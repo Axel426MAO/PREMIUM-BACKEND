@@ -18,6 +18,7 @@ async function secretaryRoutes(fastify, options) {
     // Rota para atualizar uma secretaria por ID
     fastify.put('/:id', secretaryController.update);
 
+    fastify.put('/full/:id', secretaryController.updateFull);
     // Rota para deletar uma secretaria por ID
     fastify.delete('/:id', secretaryController.delete);
 }
