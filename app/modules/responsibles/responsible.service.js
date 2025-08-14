@@ -15,33 +15,45 @@ class ResponsibleService {
    * @returns {Promise<import('@prisma/client').Responsible>}
    */
   async createResponsible(data) {
-    const { name, role, whatsapp, phone, user_id, secretary_id } = data;
+    const { name, role, whatsapp, phone, user_id, secretary_id, school_id } = data;
 
-    if (!user_id || !secretary_id) {
-      throw new Error('user_id e secretary_id são obrigatórios.');
+    if (!user_id) {
+      throw new Error('user_id é obrigatório.');
     }
 
-    // O Prisma já vai validar se o user_id e secretary_id existem por causa da relation.
-    // O `connect` lança P2025 se o ID relacionado não for encontrado.
-    return this.prisma.responsible.create({
-      data: {
-        name,
-        role,
-        whatsapp,
-        phone,
-        user: {
-          connect: { id: user_id },
-        },
-        secretary: {
-          connect: { id: secretary_id },
-        },
+    const responsibleData = {
+      name,
+      role,
+      whatsapp,
+      phone,
+      user: {
+        connect: { id: user_id },
       },
+    };
+
+    // Só conecta se tiver secretary_id
+    if (secretary_id) {
+      responsibleData.secretary = {
+        connect: { id: secretary_id },
+      };
+    }
+
+    // Só conecta se tiver school_id
+    if (school_id) {
+      responsibleData.school = {
+        connect: { id: school_id },
+      };
+    }
+
+    return this.prisma.responsible.create({
+      data: responsibleData,
       include: {
         user: {
-            select: { id: true, email: true, status: true } // Não expor a senha
+          select: { id: true, email: true, status: true }, // sem senha
         },
-        secretary: true
-      }
+        secretary: true,
+        school: true,
+      },
     });
   }
 
@@ -53,10 +65,10 @@ class ResponsibleService {
     return this.prisma.responsible.findMany({
       include: {
         user: {
-            select: { id: true, email: true, status: true }
+          select: { id: true, email: true, status: true }
         },
         secretary: {
-            include: { address: true }
+          include: { address: true }
         },
       },
     });
@@ -72,10 +84,10 @@ class ResponsibleService {
       where: { id },
       include: {
         user: {
-            select: { id: true, email: true, status: true }
+          select: { id: true, email: true, status: true }
         },
         secretary: {
-            include: { address: true }
+          include: { address: true }
         },
       },
     });
@@ -99,9 +111,9 @@ class ResponsibleService {
         user_id,
         secretary_id,
       },
-       include: {
+      include: {
         user: {
-            select: { id: true, email: true, status: true }
+          select: { id: true, email: true, status: true }
         },
         secretary: true
       }
