@@ -79,6 +79,10 @@ class LicenseBatchController {
         return reply.status(400).send({ error: 'O ID da secretaria é inválido.' });
       }
 
+      if (!id) {
+        return reply.status(400).send({ error: 'O ID da secretaria não foi fornecido.' });
+      }
+
       const licenseBatchService = new LicenseBatchService(request.server.prisma);
       const batches = await licenseBatchService.getBatchesBySecretaryId(id);
 
